@@ -32,34 +32,6 @@ class Game:
     def __str__(self):
         pass
 
-#                      STATUS CHECK
-#   //==============================================\\
-#   ||   IN: SERVICE ROOM   ||     TRASH LVL: 8     ||
-#   ||==============================================||
-#   || OUTSTANDING ORDERS:                          ||
-#   ||      1. Burger w/ Tomato & Lettuce           ||
-#   ||      2. Potato Soup && Tomato Soup           ||
-#   ||      3. Salad w/ Tomato                      ||
-#   ||==============================================||
-#   || CURRENT PROCESSES:                           ||
-#   ||      1. BEEF ON PAN #1      5 SEC REMAINING  ||
-#   ||      2. DISH WASHER        10 SEC REMAINING  ||
-#   ||      3. CUSTOMER #3         3 SEC REMAINING  ||
-#   ||==============================================||
-#   || INVENTORY:                                   ||
-#   ||      1.                                      ||
-#   ||      2. [RTP] Beef                           ||
-#   ||      3. [UNCUT] [UNCOOKED] Tomato            ||
-#   ||==============================================||
-#   || WARNINGS:                                    ||
-#   ||      1. POTATO IN PAN #2    5 SEC REMAINING  ||
-#   ||      2. TRASH LEVEL             2 REMAINING  ||
-#   \\==============================================//
-#
-#
-# [UNCOOKED] Beef
-# [UNCUT] [UNCOOKED] Tomato
-
 
 
 
