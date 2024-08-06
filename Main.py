@@ -4,25 +4,24 @@ import Room
 import Customer
 
 
-game = Game()
 
 
-def game_events(key):
-   
-    movements = [Key.up, Key.down, Key.left, Key.right]
-
-    if key in movements:
-        game.move(str(key))
-        print(game.curr_room)
 
 
-    strkey = str(key)
-
-    print(strkey)
+def send_inputs(key, game):
 
     if key == Key.esc: 
         return False
+    
+    game.game_inputs(str(key))
+    
  
-# Collect all event until released
-with Listener(on_press = game_events) as listener:
-    listener.join()
+
+def play_game():
+
+    game = Game()
+
+    with Listener(on_press = lambda key: send_inputs(key, game)) as listener:
+        listener.join()
+
+play_game()
