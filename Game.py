@@ -1,39 +1,53 @@
 class Game:
 
-    def __init__(self):
+    def __init__(self, Rooms):
         self.play = True # game in progress
         self.curr_room = 0
         self.trash_meter = 0
         self.money = 0
-        self.inventory = ["","",""]
+        self.inventory = ['','','']
         self.player_state = 0 
             # 0 - in room | next input selects action
             # 1 - in action | next input selects inventory slot
             # 2 - Action selected | 
-        #self.rooms = Rooms
+        self.rooms = Rooms
 
     def game_inputs(self, key):
         
         movements = ['Key.up', 'Key.down', 'Key.left', 'Key.right']
-        selects = ['1', '2', '3']
-        status = '4'
+        selects = ['1', '2', '3', '4']
+        exit = '5'
 
         
         if key in movements:
             self.move(key)
 
         if key in selects:
-            pass
+            
+            # (0, 0)
+            # (0, 0)
+
+
+
         
-        if key == status:
+        if key == exit:
             print(self)
 
 
     def __str__(self):
         pass
 
+        # dictionary
+
+        # ROOM
 
 
+
+    def menus(self, key):
+        (self.rooms[self.curr_room]).menu(self)
+
+
+        
 
     def move(self, move):
         room = self.curr_room

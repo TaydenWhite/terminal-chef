@@ -6,8 +6,8 @@ import Customer
 
 
 
-
-
+print('\\\\\nhello')
+'''
 def send_inputs(key, game):
 
     if key == Key.esc: 
@@ -24,4 +24,4 @@ def play_game():
     with Listener(on_press = lambda key: send_inputs(key, game)) as listener:
         listener.join()
 
-play_game()
+play_game()'''
