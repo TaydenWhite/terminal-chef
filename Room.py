@@ -24,14 +24,7 @@ class Pantry():
         print("//=================\\\\\n\t||  IN THE FRIDGE  ||\n\t||=================||\n\t|| SELECT:         ||\n\t||    1. BEEF      ||\n\t||    2. CHICKEN   ||\n\t||    3. LETTUCE   ||\n\t\\=================//\n\t")
 
     def shelf_menu(self):
-//================\\
-||  ON THE SHELF  ||
-||================||
-|| SELECT:        ||
-||    1. TOMATO   ||
-||    2. POTATO   ||
-||    3. BREAD    ||
-\\================//
+        pass
 
     def __init__(self):
         self.fridge = ['Beef', 'Chicken', 'Lettuce']
