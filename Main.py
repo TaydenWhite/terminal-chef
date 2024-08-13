@@ -6,14 +6,12 @@ import Customer
 
 
 
-print('\\\\\nhello')
-'''
 def send_inputs(key, game):
 
     if key == Key.esc: 
         return False
     
-    game.game_inputs(str(key))
+    game.state_control(str(key))
     
  
 
@@ -24,4 +22,4 @@ def play_game():
     with Listener(on_press = lambda key: send_inputs(key, game)) as listener:
         listener.join()
 
-play_game()'''
+play_game()

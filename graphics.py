@@ -4,12 +4,12 @@
 #   ||   IN: SERVICE ROOM   ||     TRASH LVL: 8     ||
 #   ||==============================================||
 #   || OUTSTANDING ORDERS:                          ||
-#   ||      1. Burger w/ Tomato & Lettuce           ||
+#   ||      1. Burger w/ Tomato, Lettuce && Fries   ||
 #   ||      2. Potato Soup && Tomato Soup           ||
 #   ||      3. Salad w/ Tomato                      ||
 #   ||==============================================||
 #   || CURRENT PROCESSES:                           ||
-#   ||      1. BEEF ON PAN #1      5 SEC REMAINING  ||
+#   ||      1. PAN #1 [Beef]       5 SEC REMAINING  ||
 #   ||      2. DISH WASHER        10 SEC REMAINING  ||
 #   ||      3. CUSTOMER #3         3 SEC REMAINING  ||
 #   ||==============================================||
@@ -19,7 +19,7 @@
 #   ||      3. [UNCUT] [UNCOOKED] Tomato            ||
 #   ||==============================================||
 #   || WARNINGS:                                    ||
-#   ||      1. POTATO IN PAN #2    5 SEC REMAINING  ||
+#   ||      1. PAN #2 [POTATO]     5 SEC REMAINING  ||
 #   ||      2. TRASH LEVEL             2 REMAINING  ||
 #   \\==============================================//
 #
@@ -41,7 +41,7 @@
 #   ||  SERVING CUSTOMER #2  ||
 #   ||==============================================\\
 #   || PICK INVENTORY SLOT:                         ||
-#   ||    1. [PLATED] Burger w/ Tomato & Lettuce    ||    
+#   ||    1. [PLATE #2] Burger w/ Tomato & Lettuce  ||    
 #   ||    2.                                        ||
 #   ||    3. [UNCUT] [UNCOOKED] Tomato              ||
 #   \\==============================================//
@@ -55,16 +55,16 @@
 #   ||      3. DONE                                 ||
 #   ||==============================================||
 #   || INTERACT W/:                                 ||
-#   ||    1. PLATE #1 [Burger w/ Tomato & Lettuce]  || 
+#   ||    1. [PLATE #1] Burger w/ Tomato & Lettuce  || 
 #   ||    2.                                        ||
-#   ||    3. PLATE #3 [Bread & Tomato]              ||   
+#   ||    3. PLATE #3                               ||   
 #   \\==============================================//
 #
 #   //====================\\
 #   ||  SETTING PLATE #3  ||
 #   ||==============================================\\
 #   || PICK INVENTORY SLOT:                         ||
-#   ||    1. [PLATED] Burger w/ Tomato & Lettuce    ||    
+#   ||    1. [PLATE #1] Burger w/ Tomato & Lettuce  ||    
 #   ||    2.                                        ||
 #   ||    3. [UNCUT] [UNCOOKED] Tomato              ||
 #   \\==============================================//
@@ -81,18 +81,18 @@
 #   ||  IN THE FRIDGE  ||
 #   ||=================||
 #   || SELECT:         ||
-#   ||    1. BEEF      ||
-#   ||    2. CHICKEN   ||
-#   ||    3. LETTUCE   ||
+#   ||    1. Beef      ||
+#   ||    2. Chicken   ||
+#   ||    3. Lettuce   ||
 #   \\=================//
 
 #   //================\\
 #   ||  ON THE SHELF  ||
 #   ||================||
 #   || SELECT:        ||
-#   ||    1. TOMATO   ||
-#   ||    2. POTATO   ||
-#   ||    3. BREAD    ||
+#   ||    1. Tomato   ||
+#   ||    2. Potato   ||
+#   ||    3. Bread    ||
 #   \\================//
 
 #   //=================\\
@@ -145,7 +145,7 @@
 #   || PICK INVENTORY SLOT:                         ||
 #   ||    1. [PLATED] Burger w/ Tomato & Lettuce    ||
 #   ||    2.                                        ||
-#   ||    3. [UNCUT] [UNWASHED] Tomato              ||
+#   ||    3. [UNWASHED] [UNCUT] Tomato              ||
 #   \\==============================================//
 
 #   //==============\\

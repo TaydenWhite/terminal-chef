@@ -1,55 +1,55 @@
-class Room:
+from Item import Ingredient
+from Item import Item
 
+class Room:
     def __init__(self, name):
-        self.name = name
+        self.action1 = Action()
+        self.action2 = Action()
+        self.action_states = [1, 2]
 
     def __str__(self):
         pass
 
 # PANTRY CLASS
 class Pantry():
-
-#   //===================\\
-#   ||  ENTERED: PANTRY  ||
-#   ||===================||
-#   || INTERACT W/:      ||
-#   ||    1. FRIDGE      ||
-#   ||    2. SHELF       ||
-#   \\===================//
     
-    def action_menu(self):
-        print("//===================\\\\\n\t||  ENTERED: PANTRY  ||\n\t||===================||\n\t|| INTERACT W/:      ||\n\t||    1. FRIDGE      ||\n\t||    2. SHELF       ||\n\t\\===================//")
+    def __init__(self):
+        fridge = ['Beef', 'Chicken', 'Lettuce']
+        self.beef = Ingredient('Beef', {'[RTP]' : False, '[UNWASHED]' : False, 
+                                        '[UNCUT]' : True, '[UNCOOKED]' : True, '[BURNED]' : False}, False)
+        self.chicken = Ingredient('Chicken', {'[RTP]' : False, '[UNWASHED]' : True, 
+                                        '[UNCUT]' : False, '[UNCOOKED]' : True, '[BURNED]' : False}, False)
+        self.lettuce = Ingredient('Lettuce', {'[RTP]' : False, '[UNWASHED]' : True, 
+                                        '[UNCUT]' : True, '[UNCOOKED]' : False, '[BURNED]' : False}, False)
+        self.tomato = Ingredient('Tomato', {'[RTP]' : False, '[UNWASHED]' : True, 
+                                        '[UNCUT]' : True, '[UNCOOKED]' : True, '[BURNED]' : False}, False)
+        self.potato = Ingredient('Potato', {'[RTP]' : False, '[UNWASHED]' : True, 
+                                        '[UNCUT]' : True, '[UNCOOKED]' : True, '[BURNED]' : False}, False)
+        self.bread = Ingredient('Bread', {'[RTP]' : True, '[UNWASHED]' : False, 
+                                        '[UNCUT]' : False, '[UNCOOKED]' : False, '[BURNED]' : False}, False)
+        
+        self.fridge = [self.beef, self.chicken, self.lettuce]
+        self.shelf = [self.tomato, self.potato, self.bread]
 
-    def fridge_menu(self):
-        print("//=================\\\\\n\t||  IN THE FRIDGE  ||\n\t||=================||\n\t|| SELECT:         ||\n\t||    1. BEEF      ||\n\t||    2. CHICKEN   ||\n\t||    3. LETTUCE   ||\n\t\\=================//\n\t")
+class Plating():
 
-    def shelf_menu(self):
-        pass
+    def __unit__(self):
+        self.plate1 = Item([], [], [], 1, 'plating')
+        self.plate2 = Item([], [], [], 2, 'plating')
+        self.plate3 = Item([], [], [], 3, 'plating')
 
+class Prep():
+    
     def __init__(self):
         self.fridge = ['Beef', 'Chicken', 'Lettuce']
         self.shelf = ['Tomato', 'Potato', 'Bread']
         self.state = 0
-        
-
-    def menu(self, game):
-        pass
-
-
-
-    
-
-
-# PREP ROOM CLASS
-# STOVES CLASS
-# PANTRY CLASS
-# PANTRY CLASS
-# PANTRY CLASS
-
+        self.room_state = 0
+        self.action_states = [1, 2]
 
 class Action:
-
-    def __init__(self, name, string, modifier):
+    def __init__(self, name, item, time):
         self.name = name
-        self.string = string
-        self.modifier = modifier
+        self.item = item
+        self.time = time
+

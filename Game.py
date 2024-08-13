@@ -6,48 +6,35 @@ class Game:
         self.trash_meter = 0
         self.money = 0
         self.inventory = ['','','']
-        self.player_state = 0 
-            # 0 - in room | next input selects action
-            # 1 - in action | next input selects inventory slot
-            # 2 - Action selected | 
+        self.room_state = 0 
         self.rooms = Rooms
+        self.curr_processes = [] # should be accessed through rooms -> actions -> countdowns
 
-    def game_inputs(self, key):
+        def __str__(self):
+            pass
+
+
+    def state_control(self, key):
         
         movements = ['Key.up', 'Key.down', 'Key.left', 'Key.right']
         selects = ['1', '2', '3', '4']
         exit = '5'
-
         
         if key in movements:
             self.move(key)
+            self.room_state == 0
 
         if key in selects:
+            pass
             
             # (0, 0)
             # (0, 0)
 
+        self.trash_meter += 1
+        if self.trash_meter == 11:
+            pass
+            # PUNISHMENT
 
-
-        
-        if key == exit:
-            print(self)
-
-
-    def __str__(self):
-        pass
-
-        # dictionary
-
-        # ROOM
-
-
-
-    def menus(self, key):
-        (self.rooms[self.curr_room]).menu(self)
-
-
-        
 
     def move(self, move):
         room = self.curr_room
@@ -69,3 +56,28 @@ class Game:
         else:
             if room == 1 or room == 3:
                 self.curr_room -= 1
+
+
+
+    def state_control(self, key):
+        if key in 
+
+
+    def status_menu(self):
+        # NEED: curr_room, trash_lvl, 
+        # customers.orders
+        # curr_processes
+        # inventory
+        # warnings
+
+
+        pass
+
+    def room_menu(self):
+        pass
+
+    def action_menu(self):
+        pass
+
+    def inventory_menu(self):
+        pass
