@@ -53,7 +53,7 @@
 #   ||      1. Burger w/ Tomato & Lettuce           ||
 #   ||      2. EATING              7 SEC REMAINING  ||
 #   ||      3. DONE                                 ||
-#   ||==============================================||
+#   ||==============================================||`
 #   || INTERACT W/:                                 ||
 #   ||    1. [PLATE #1] Burger w/ Tomato & Lettuce  || 
 #   ||    2.                                        ||

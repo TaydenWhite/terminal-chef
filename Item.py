@@ -1,14 +1,17 @@
 class Item:
-    def __init__(self, plate_num, mains, withs, sides, location):
+    def __init__(self, plate_num, mains, withs, sides, location, empty):
         self.mains = mains # main ingredients ------- beef, bread for burger
         self.withs = withs # additional ingredients - tomato, lettuce for burger 
         self.sides = sides # side dish ingredients -- fries for burger
         self.plate_num = plate_num
         self.loc = location # can be "inventory", "plating", "order" -- used to determine print format
+        self.empty = empty
         
         
 
     def __str__(self):
+
+        if self.empty: return ''
 
         dish_map = {['Tomato'] : 'Tomato Soup', ['Potato'] : 'French Fries', ['Bread', 'Beef'] : 'Burger',
                     ['Bread', 'Chicken', 'Tomato'] : 'Chicken Parm', ['Lettuce'] : 'Salad', ['Beef'] : 'Steak'}
@@ -51,24 +54,5 @@ class Item:
 
         return merge_item
 
-# ingredients are: Tomato, Potato, Lettuce, Beef, Chicken, Bread
-class Ingredient:
-    def __init__(self, name, tags, show_tags):
-        self.name = name
-        self.tags = tags
-        self.show_tags = show_tags # only show tags in inventory 
 
-        # example tags input
-        # tags = {'[RTP]' : False, '[UNWASHED]' : True, 
-        #        '[UNCUT]' : False, '[UNCOOKED]' : True, '[BURNED]' : False}
-
-    def __str__(self):
-        string = ''
-        
-        if self.show_tags:
-            for tag in self.tags:
-                if self.tags[tag]: string += f'{tag} '
-            string += self.name
-
-        return string
              
