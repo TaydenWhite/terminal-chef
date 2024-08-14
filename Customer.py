@@ -1,10 +1,32 @@
+from enum import Enum
+
+class State(Enum):
+    WAITING = 0
+    EATING = 1
+    DONE = 2
+
+
 class Customer:
 
-    def __init__(self, order, price, curr_time):
+    def __init__(self, order, price):
         self.order = order # order is a 
         self.price = price
+        self.state = State.WAITING
+        
+    def get_order(self):
+        return self.order
+    
+    def get_price(self):
+        return self.price
+    
+    def get_state(self):
+        return self.state
+    
+    def set_order(self, order):
+        self.order = order
 
-        self.eating = False
-        self.end_time = curr_time + 10
+    def set_price(self, price):
+        self.price = price
 
-    def 
+    def set_state(self, state):
+        self.state = state

@@ -1,10 +1,10 @@
-import Item
-from Room import Pantry
-from Room import Plating
-import Customer
+from Item import Item
+from Rooms.Pantry import Pantry
+from Rooms.Pantry import Plating
+from Customer import Customer
+
 
 class Game:
-
     def __init__(self):
         self.play = True # game in progress
         self.curr_room = 0
@@ -13,10 +13,10 @@ class Game:
 
         self.trash_meter = 0
         self.money = 0
-        self.inventory = [Item([], [], [], 0, True), Item([], [], [], 0, True), Item([], [], [], 0, True)]
-        self.customers = [Customer(Item(['Bread', 'Beef'], [], ['Potato'], 0, 'order'), 13), # Burger & Fries
-                          Customer(Item(['Bread', 'Beef'], ['Lettuce', 'Tomato'], [], 0, 'order'), 10), # Burger w/ Lettuce, Tomato
-                          Customer(Item(['Tomato'], [], ['Lettuce'], 0, 'order'), 8)] # Tomato Soup & Salad
+        self.inventory = [Item([], [], [], 0, 'inventory', True), Item([], [], [], 0, 'inventory', True), Item([], [], [], 0, 'inventory', True)]
+        self.customers = [Customer(Item(['Bread', 'Beef'], [], ['Potato'], 0, 'order', 'False'), 13), # Burger & Fries
+                          Customer(Item(['Bread', 'Beef'], ['Lettuce', 'Tomato'], [], 0, 'order', 'False'), 10), # Burger w/ Lettuce, Tomato
+                          Customer(Item(['Tomato'], [], ['Lettuce'], 0, 'order', 'False'), 8)] # Tomato Soup & Salad
         self.rooms = [Pantry(), Plating()]
         #      5
         #      4
@@ -85,9 +85,48 @@ class Game:
     def state_control(self, key):
         pass
 
+#                      STATUS CHECK
+#   //==============================================\\
+#   ||   IN: SERVICE ROOM   ||     TRASH LVL: 8     ||
+#   ||==============================================||
+#   || OUTSTANDING ORDERS:                          ||
+#   ||      1. Burger w/ Tomato, Lettuce && Fries   ||
+#   ||      2. Potato Soup && Tomato Soup           ||
+#   ||      3. Salad w/ Tomato                      ||
+#   ||==============================================||
+#   || CURRENT PROCESSES:                           ||
+#   ||      1. PAN #1 [Beef]       5 SEC REMAINING  ||
+#   ||      2. DISH WASHER        10 SEC REMAINING  ||
+#   ||      3. CUSTOMER #3         3 SEC REMAINING  ||
+#   ||==============================================||
+#   || INVENTORY:                                   ||
+#   ||      1.                                      ||
+#   ||      2. [RTP] Beef                           ||
+#   ||      3. [UNCUT] [UNCOOKED] Tomato            ||
+#   ||==============================================||
+#   || WARNINGS:                                    ||
+#   ||      1. PAN #2 [POTATO]     5 SEC REMAINING  ||
+#   ||      2. TRASH LEVEL             2 REMAINING  ||
+#   \\==============================================//
 
     def status_menu(self):
-        string = str((self.rooms)[self.curr_room], self)
+        # get and print outstanding orders
+        max = -10000
+        order_strings = []
+        for num, customer in enumerate(self.customers):
+            if customer.get_state() == 0:
+                string = f'{num + 1}. {str(customer.get_order)}'
+                if len(string) > max: max = len(string)
+                order_strings.append(string)
+
+        # get current processes
+
+
+        #get inventory
+
+
+
+
         print
         # NEED: curr_room, trash_lvl, 
         # customers.orders

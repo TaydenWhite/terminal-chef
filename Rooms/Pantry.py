@@ -1,15 +1,8 @@
 from Ingredient import Ingredient
-import Item
-import Game
+from Item import Item
 
-class Room:
-    def __init__(self, name):
-        self.action1 = Action()
-        self.action2 = Action()
-        self.action_states = [1, 2]
 
-    def __str__(self):
-        pass
+
 
 # PANTRY CLASS
 class Pantry():
@@ -31,7 +24,7 @@ class Pantry():
         self.fridge = [beef, chicken, lettuce]
         self.shelf = [tomato, potato, bread]
 
-    def __str__(self, game):
+    def __str__(self):
         return '\t//===================\\\\\n\t||  ENTERED: PANTRY  ||\n\t||===================||\n\t|| INTERACT W/:      ||\n\t||    1. FRIDGE      ||\n\t||    2. SHELF       ||\n\t\\\\===================//'
 
 class Plating():
@@ -60,15 +53,8 @@ class Plating():
 #   ||    3. PLATE #3                               ||   
 #   \\==============================================//
 
-class Prep():
-    
-    def __init__(self):
-        pass
+
+        
 
 
-class Action:
-    def __init__(self, name, item, time):
-        self.name = name
-        self.item = item
-        self.time = time
 
