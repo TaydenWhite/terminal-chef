@@ -1,5 +1,9 @@
-from pynput.keyboard import Key, Listener
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from Game_Runner import Game_Runner
+from pynput.keyboard import Key, Listener
 
 def send_inputs(key, runner):
     if key == Key.esc: return False

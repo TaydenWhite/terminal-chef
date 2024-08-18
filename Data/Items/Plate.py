@@ -1,4 +1,8 @@
-from Data.Items.Ingredient import Ingredient
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from Ingredient import Ingredient
 
 class Plate:
     def __init__(self, mains, withs, sides, plate_num, show_plate):
@@ -9,7 +13,7 @@ class Plate:
         self.show_plate = show_plate # show in inventory -- not in orders
         self.dirty = False
 
-    def add_ingredient(self, ingredient, loc):
+    def add_ingredient(self, ingredient: Ingredient, loc):
 
         dish_map = {['Tomato'] : ['Tomato Soup'], 
                     ['Potato'] : ['French Fries'], 

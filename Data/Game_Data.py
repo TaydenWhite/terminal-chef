@@ -1,7 +1,7 @@
 from Data.Items.Plate import Plate
 from Rooms.Pantry import Pantry
 from Rooms.Plating import Plating
-from Customer import Customer
+from Data.Customer import Customer
 
 
 class Game_Data:

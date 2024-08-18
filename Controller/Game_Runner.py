@@ -1,4 +1,10 @@
-from ..Data.Game_Data import Game_Data
+import sys
+import os
+
+# Add the base directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from Data.Game_Data import Game_Data
 from Visuals import Game_Draw
 
 class Game_Runner:
