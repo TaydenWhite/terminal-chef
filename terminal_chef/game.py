@@ -1,0 +1,567 @@
+"""Game state and the menu state machine."""
+
+import random
+import sys
+import time
+
+from .food import FRIDGE, SHELF, Ingredient, Plate, random_orders, recipe_steps
+from .render import MARGIN, Box, C, Cells, L, LR, numbered
+from .stations import (CUT_SECONDS, WASH_SECONDS, Cooker, Counter, Customer,
+                       Disposal, DishWasher, Prepper)
+
+# room id: (title used in ENTERED and IN lines, report name, grid x, grid y)
+ROOMS = {
+    'SERVICE':  ('SERVICE', 'Service', 0, 0),
+    'PLATING':  ('PLATING', 'Plating', 0, 1),
+    'COUNTERS': ('COUNTERS', 'Counters', 0, 2),
+    'STOVES':   ('STOVES', 'Stoves', 1, 2),
+    'PREP':     ('PREP ROOM', 'Prep', 1, 1),
+    'PANTRY':   ('PANTRY', 'Pantry', 2, 1),
+    'CLEANING': ('CLEANING', 'Cleaning', 2, 2),
+}
+GRID = {(x, y): rid for rid, (_, _, x, y) in ROOMS.items()}
+MOVES = {'UP': (0, -1), 'DOWN': (0, 1), 'LEFT': (-1, 0), 'RIGHT': (1, 0)}
+TOTAL_ORDERS = 12
+
+
+class ConsoleIO:
+    def line(self, text=''):
+        sys.stdout.write(text + '\n')
+        sys.stdout.flush()
+
+    def raw(self, text):
+        sys.stdout.write(text)
+        sys.stdout.flush()
+
+
+class Screen:
+    """A menu: `render()` builds its Box, `on_key(key)` reacts to 1-4 or moves."""
+
+    def __init__(self, render, on_key):
+        self.render = render
+        self.on_key = on_key
+
+
+def seconds(value):
+    return str(int(round(value)))
+
+
+def recipes_box(names):
+    sections = [[L(f' {name}:')] + [L(numbered(step, label)) for step, label in recipe_steps(name)]
+                for name in names]
+    return Box('RECIPES', sections)
+
+
+class Game:
+    def __init__(self, io=None, clock=time.monotonic, rng=random):
+        self.io = io or ConsoleIO()
+        self.clock = clock
+        self.rng = rng
+        self.trash = 0
+        self.inventory = [None, None, None]
+        self.plates = [Plate(n) for n in (1, 2, 3)]
+        self.plating = list(self.plates)
+        self.counters = [Counter(f'COUNTER #{n}') for n in (1, 2, 3)]
+        self.cookers = [Cooker('PAN', 'PAN #1'), Cooker('PAN', 'PAN #2'), Cooker('POT', 'POT #1')]
+        self.board = Prepper('CUT', 'CUTTING BOARD', CUT_SECONDS)
+        self.sink = Prepper('WASH', 'SINK', WASH_SECONDS)
+        self.washer = DishWasher()
+        self.disposal = Disposal()
+        self.customers = [Customer(n) for n in (1, 2, 3)]
+        # Fixed order for tick processing and the CURRENT PROCESSES list.
+        self.stations = (self.cookers + [self.board, self.sink, self.washer, self.disposal]
+                         + self.counters + self.customers)
+        self.orders = random_orders(TOTAL_ORDERS, rng=rng)
+        self.next_order = 0
+        self.served = []  # (dish name, seconds from order to serve)
+        self.room = 'SERVICE'
+        self.room_time = {rid: 0.0 for rid in ROOMS}
+        self.room_entered_at = None
+        self.start_time = None
+        self.e_checks = 0
+        self.r_checks = 0
+        self.disposal_times = []
+        self.held = set()
+        self.math = None  # active trash-disposal quiz, else None
+        self.over = False
+        self.screen = None
+
+    # ------------------------------------------------------------ basics
+    @property
+    def now(self):
+        return self.clock()
+
+    def add_trash(self, n):
+        self.trash = min(10, self.trash + n)
+
+    def show(self, text):
+        self.io.line(text)
+        self.io.line('')
+
+    def start(self):
+        self.start_time = self.room_entered_at = self.now
+        for customer in self.customers:
+            self.place_order(customer)
+        self.go(self.entered_screen())
+
+    def tick(self):
+        """Fire every due timer in chronological order."""
+        now = self.now
+        while True:
+            due = [(s.timer.end, i, s) for i, s in enumerate(self.stations)
+                   if s.timer is not None and s.timer.end <= now]
+            if not due:
+                return
+            due.sort(key=lambda d: d[:2])
+            due[0][2].fire(self)
+
+    def render(self):
+        self.tick()
+        self.show(self.screen.render().render())
+
+    def go(self, screen):
+        self.screen = screen
+        self.render()
+
+    # ------------------------------------------------------------ input
+    def press(self, key):
+        if self.over:
+            return
+        self.tick()
+        if self.math is not None:
+            self.math_key(key)
+        elif key in ('E', 'R'):
+            if key in self.held:
+                return
+            self.held.add(key)
+            if key == 'E':
+                self.e_checks += 1
+                self.show(self.everything_box().render())
+            else:
+                self.r_checks += 1
+                self.show(recipes_box(self.outstanding()).render())
+        else:
+            self.screen.on_key(key)
+
+    def release(self, key):
+        if key in self.held:
+            self.held.discard(key)
+            if not self.over and self.math is None:
+                self.render()
+
+    def move(self, direction):
+        _, _, x, y = ROOMS[self.room]
+        dx, dy = MOVES[direction]
+        target = GRID.get((x + dx, y + dy))
+        if target is None:
+            return
+        now = self.now
+        self.room_time[self.room] += now - self.room_entered_at
+        self.room_entered_at = now
+        self.room = target
+        self.go(self.entered_screen())
+
+    # ------------------------------------------------------------ shared pieces
+    def inventory_lines(self):
+        return [L(numbered(i + 1, item.label if item else '')) for i, item in enumerate(self.inventory)]
+
+    def customer_section(self):
+        now = self.now
+        rows = [L(' CUSTOMER STATUS:')]
+        for c in self.customers:
+            left = f'    #{c.seat}: {c.state}'
+            if c.state == 'WAITING':
+                rows.append(LR(left, c.order))
+            elif c.state == 'EATING':
+                rows.append(LR(left, f'{c.timer.remaining(now)} SEC'))
+            else:
+                rows.append(L(left))
+        return rows
+
+    def outstanding(self):
+        return [c.order for c in self.customers if c.state == 'WAITING']
+
+    def take_status(self, station):
+        item = station.item
+        if item is None:
+            return C('EMPTY')
+        time_text = station.time_text(self.now)
+        return LR('  ' + item.label, time_text) if time_text else C(item.label)
+
+    def picker(self, title, status, on_pick, back):
+        """A PICK INVENTORY SLOT menu. `status` builds the optional status line,
+        `on_pick(slot)` returns True on success, `back()` builds the RETURN target."""
+        def render():
+            sections = []
+            line = status() if status else None
+            if line is not None:
+                sections.append([line])
+            sections.append([L(' PICK INVENTORY SLOT:')] + self.inventory_lines()
+                            + [L(numbered(4, 'RETURN'))])
+            return Box(title, sections)
+
+        def on_key(key):
+            if key in ('1', '2', '3'):
+                if on_pick(int(key) - 1) and not self.over:
+                    self.go(self.entered_screen())
+            elif key == '4':
+                self.go(back())
+
+        return Screen(render, on_key)
+
+    # ------------------------------------------------------------ ENTERED menus
+    def entered_screen(self):
+        room = self.room
+        select = {
+            'SERVICE': self.service_select, 'PLATING': self.plating_select,
+            'COUNTERS': self.counters_select, 'STOVES': self.stoves_select,
+            'PREP': self.prep_select, 'PANTRY': self.pantry_select,
+            'CLEANING': self.cleaning_select,
+        }[room]
+
+        def on_key(key):
+            if key in MOVES:
+                self.move(key)
+            elif key in ('1', '2', '3'):
+                select(int(key))
+
+        return Screen(lambda: self.entered_box(room), on_key)
+
+    def entered_box(self, room):
+        title = f'ENTERED: {ROOMS[room][0]}'
+        now = self.now
+        interact = [L(' INTERACT W/:')]
+        if room == 'SERVICE':
+            return Box(title, [self.customer_section(),
+                               interact + [L(numbered(c.seat, c.label)) for c in self.customers]])
+        if room == 'PLATING':
+            slots = [L(numbered(i + 1, p.label if p else '')) for i, p in enumerate(self.plating)]
+            return Box(title, [self.customer_section(), interact + slots])
+        if room == 'COUNTERS':
+            rows = [LR(numbered(i + 1, c.item.label), c.time_text(now)) if c.item else L(numbered(i + 1))
+                    for i, c in enumerate(self.counters)]
+            return Box(title, [rows, interact + [L(numbered(i + 1, c.label)) for i, c in enumerate(self.counters)]])
+        if room == 'STOVES':
+            pan1, pan2, pot = self.cookers
+            return Box(title, [[Cells(f'{pan1.label}: {pan1.status(now)}', f'{pan2.label}: {pan2.status(now)}')],
+                               [C(f'{pot.label}: {pot.status(now)}')],
+                               interact + [L(numbered(i + 1, c.label)) for i, c in enumerate(self.cookers)]])
+        if room == 'PREP':
+            return Box(title, [[Cells(f'BOARD: {self.board.status(now)}', f'SINK: {self.sink.status(now)}')],
+                               interact + [L(numbered(1, 'CUTTING BOARD')), L(numbered(2, 'SINK'))]])
+        if room == 'PANTRY':
+            return Box(title, [interact + [L(numbered(1, 'FRIDGE')), L(numbered(2, 'SHELF'))]])
+        return Box(title, [[Cells(f'WASHER: {self.washer.status_short(now)}',
+                                  f'DISPOSAL: {self.disposal.status(now)}')],
+                           interact + [L(numbered(1, 'DISH WASHER')), L(numbered(2, 'TRASH DISPOSAL')),
+                                       L(numbered(3, 'DISCARD BIN'))]],
+                   title_extra=[f'TRASH LEVEL: {self.trash}'])
+
+    # ------------------------------------------------------------ SERVICE
+    def service_select(self, n):
+        customer = self.customers[n - 1]
+        if customer.state == 'WAITING':
+            self.go(self.picker([customer.label, 'SERVE FOOD'], lambda: C(f'ORDER: {customer.order}'),
+                                lambda i: self.serve(customer, i), self.entered_screen))
+        elif customer.state == 'DONE':
+            self.go(self.picker([customer.label, 'TAKE PLATE'], None,
+                                lambda i: self.take_plate(customer, i), self.entered_screen))
+
+    def serve(self, customer, i):
+        item = self.inventory[i]
+        if not isinstance(item, Plate) or item.dirty or item.dish_name() != customer.order:
+            return False
+        now = self.now
+        self.inventory[i] = None
+        self.served.append((customer.order, now - customer.order_time))
+        customer.serve(item, now, self.trash)
+        self.show(Box(f'SERVED {customer.label}').render())
+        if len(self.served) == TOTAL_ORDERS:
+            self.finish()
+        return True
+
+    def take_plate(self, customer, i):
+        if self.inventory[i] is not None:
+            return False
+        plate = customer.take()
+        plate.soil()
+        self.inventory[i] = plate
+        self.add_trash(1)
+        order = self.place_order(customer)
+        if order:
+            self.show(Box(f'NEW ORDER: {order}').render())
+        return True
+
+    def place_order(self, customer):
+        if self.next_order >= len(self.orders):
+            return None
+        order = self.orders[self.next_order]
+        self.next_order += 1
+        customer.place(order, self.now)
+        return order
+
+    # ------------------------------------------------------------ PLATING
+    def plating_select(self, n):
+        slot = n - 1
+        if self.plating[slot] is None:
+            self.go(self.picker([f'SLOT #{n}', 'ADD PLATE'], lambda: C('EMPTY'),
+                                lambda i: self.add_plate(slot, i), self.entered_screen))
+        else:
+            self.go(self.plate_screen(slot))
+
+    def plate_screen(self, slot):
+        plate = self.plating[slot]
+        title = f'PLATE #{plate.number}'
+        status = lambda: C(plate.content or 'EMPTY')
+
+        def render():
+            return Box(title, [[status()], [L(' ACTION:'), L(numbered(1, 'ADD TO PLATE')),
+                                            L(numbered(2, 'PICK UP PLATE')), L(numbered(4, 'RETURN'))]])
+
+        def on_key(key):
+            if key == '1':
+                self.go(self.picker([title, 'ADD INGREDIENT'], status,
+                                    lambda i: self.add_ingredient(plate, i), lambda: self.plate_screen(slot)))
+            elif key == '2':
+                self.go(self.picker([title, 'MOVE TO INVENTORY'], status,
+                                    lambda i: self.pick_up_plate(slot, i), lambda: self.plate_screen(slot)))
+            elif key == '4':
+                self.go(self.entered_screen())
+
+        return Screen(render, on_key)
+
+    def add_plate(self, slot, i):
+        item = self.inventory[i]
+        if not isinstance(item, Plate) or item.dirty:
+            return False
+        self.plating[slot], self.inventory[i] = item, None
+        return True
+
+    def add_ingredient(self, plate, i):
+        item = self.inventory[i]
+        if not isinstance(item, Ingredient) or not plate.can_add(item):
+            return False
+        plate.add(item)
+        self.inventory[i] = None
+        return True
+
+    def pick_up_plate(self, slot, i):
+        if self.inventory[i] is not None:
+            return False
+        self.inventory[i], self.plating[slot] = self.plating[slot], None
+        return True
+
+    # ------------------------------------------------------------ COUNTERS
+    def counters_select(self, n):
+        counter = self.counters[n - 1]
+        if counter.item is None:
+            self.go(self.picker([counter.label, 'STORE ITEM'], lambda: C('EMPTY'),
+                                lambda i: self.store_item(counter, i), self.entered_screen))
+        else:
+            self.go(self.picker([counter.label, 'TAKE ITEM'], lambda: self.take_status(counter),
+                                lambda i: self.take_from(counter, i), self.entered_screen))
+
+    def store_item(self, counter, i):
+        item = self.inventory[i]
+        if item is None or counter.item is not None:
+            return False
+        counter.store(item, self.now)
+        self.inventory[i] = None
+        return True
+
+    def take_from(self, station, i):
+        if self.inventory[i] is not None or not station.can_take():
+            return False
+        self.inventory[i] = station.take()
+        return True
+
+    def add_to(self, station, i):
+        item = self.inventory[i]
+        if not isinstance(item, Ingredient) or not station.accepts(item):
+            return False
+        station.start(item, self.now, self.trash)
+        self.inventory[i] = None
+        return True
+
+    # ------------------------------------------------------------ STOVES / PREP
+    def stoves_select(self, n):
+        self.station_select(self.cookers[n - 1])
+
+    def prep_select(self, n):
+        if n <= 2:
+            self.station_select([self.board, self.sink][n - 1])
+
+    def station_select(self, station):
+        if not station.selectable:
+            return
+        if station.item is None:
+            self.go(self.picker([station.label, 'ADD ITEM'], lambda: C('EMPTY'),
+                                lambda i: self.add_to(station, i), self.entered_screen))
+        else:
+            self.go(self.picker([station.label, 'TAKE ITEM'], lambda: self.take_status(station),
+                                lambda i: self.take_from(station, i), self.entered_screen))
+
+    # ------------------------------------------------------------ PANTRY
+    def pantry_select(self, n):
+        if n == 1:
+            self.go(self.pantry_screen('IN THE FRIDGE', FRIDGE))
+        elif n == 2:
+            self.go(self.pantry_screen('ON THE SHELF', SHELF))
+
+    def pantry_screen(self, title, names):
+        def render():
+            return Box(title, [[L(' SELECT:')] + [L(numbered(i + 1, name)) for i, name in enumerate(names)]
+                               + [L(numbered(4, 'RETURN'))]])
+
+        def on_key(key):
+            if key in ('1', '2', '3'):
+                name = names[int(key) - 1]
+                self.go(self.picker([f'SELECTED {name.upper()}'], None,
+                                    lambda i: self.grab(name, i), lambda: self.pantry_screen(title, names)))
+            elif key == '4':
+                self.go(self.entered_screen())
+
+        return Screen(render, on_key)
+
+    def grab(self, name, i):
+        if self.inventory[i] is not None:
+            return False
+        self.inventory[i] = Ingredient(name)
+        return True
+
+    # ------------------------------------------------------------ CLEANING
+    def cleaning_select(self, n):
+        if n == 1:
+            if not self.washer.running:
+                self.go(self.washer_screen())
+        elif n == 2:
+            if not self.disposal.running:
+                self.start_math()
+        elif n == 3:
+            self.go(self.picker(['DISCARD BIN'], None, self.discard, self.entered_screen))
+
+    def washer_screen(self):
+        status = lambda: C(self.washer.status_long(self.now))
+
+        def render():
+            return Box('DISH WASHER', [[status()], [L(' ACTION:'), L(numbered(1, 'ADD PLATE')),
+                                                    L(numbered(2, 'RETRIEVE PLATE')),
+                                                    L(numbered(3, 'START WASHER')), L(numbered(4, 'RETURN'))]])
+
+        def on_key(key):
+            if key == '1':
+                self.go(self.picker(['DISH WASHER', 'ADD PLATE'], status, self.washer_add, self.washer_screen))
+            elif key == '2':
+                self.go(self.picker(['DISH WASHER', 'TAKE PLATE'], status, self.washer_take, self.washer_screen))
+            elif key == '3':
+                if self.washer.start(self.now, self.trash):
+                    self.show(Box('STARTED DISH WASHER').render())
+                    self.go(self.entered_screen())
+            elif key == '4':
+                self.go(self.entered_screen())
+
+        return Screen(render, on_key)
+
+    def washer_add(self, i):
+        item = self.inventory[i]
+        if not isinstance(item, Plate) or not self.washer.can_add():
+            return False
+        self.washer.add(item)
+        self.inventory[i] = None
+        return True
+
+    def washer_take(self, i):
+        if self.inventory[i] is not None or not self.washer.clean_plates():
+            return False
+        self.inventory[i] = self.washer.retrieve()
+        return True
+
+    def discard(self, i):
+        item = self.inventory[i]
+        if item is None:
+            return False
+        if isinstance(item, Plate):
+            if not item.items:
+                return False  # plates themselves can never be thrown away
+            item.soil()
+        else:
+            self.inventory[i] = None
+        return True
+
+    # ------------------------------------------------------------ trash disposal quiz
+    def start_math(self):
+        self.math = {'correct': 0, 'typed': '', 'answer': None, 'started': self.now}
+        title = '  TRASH DISPOSAL  ||  ACTIVATE  '
+        self.io.line(MARGIN + '//' + '=' * len(title) + '\\\\')
+        self.io.line(MARGIN + '||' + title + '||')
+        self.io.line(MARGIN + '||' + '=' * len(title) + '//')
+        self.new_problem()
+
+    def new_problem(self):
+        a, b = self.rng.randint(1, 9), self.rng.randint(1, 9)
+        self.math['answer'] = a * b
+        self.math['typed'] = ''
+        self.io.raw(f'{MARGIN}||  {a} X {b} = _\b')
+
+    def math_key(self, key):
+        m = self.math
+        if key.isdigit():
+            if len(m['typed']) < 3:
+                m['typed'] += key
+                self.io.raw(key)
+        elif key == 'BACKSPACE':
+            if m['typed']:
+                m['typed'] = m['typed'][:-1]
+                self.io.raw('\b \b' if m['typed'] else '\b_\b')
+        elif key == 'ENTER':
+            self.io.raw('\n')
+            if m['typed'] and int(m['typed']) == m['answer']:
+                m['correct'] += 1
+            if m['correct'] < 3:
+                self.new_problem()
+                return
+            width = len('  STARTED TRASH DISPOSAL  ')
+            self.io.line(MARGIN + '||' + '=' * width + '\\\\')
+            self.io.line(MARGIN + '||  STARTED TRASH DISPOSAL  ||')
+            self.io.line(MARGIN + '\\\\' + '=' * width + '//')
+            self.io.line('')
+            self.disposal_times.append(self.now - m['started'])
+            self.disposal.start(self.now, self.trash)
+            self.math = None
+            self.go(self.entered_screen())
+
+    # ------------------------------------------------------------ EVERYTHING / report
+    def everything_box(self):
+        now = self.now
+        orders = [L(numbered(c.seat, c.order)) for c in self.customers if c.state == 'WAITING']
+        processes = [(s.process_name(), s.timer.remaining(now)) for s in self.stations if s.timer is not None]
+        process_lines = [LR(numbered(i + 1, name), f'{t} SEC') for i, (name, t) in enumerate(processes)]
+        return Box('EVERYTHING', [
+            [Cells(f'IN: {ROOMS[self.room][0]}', f'TRASH LVL: {self.trash}')],
+            [L(' OUTSTANDING ORDERS:')] + orders,
+            [L(' INVENTORY:')] + self.inventory_lines(),
+            [L(' CURRENT PROCESSES:')] + process_lines,
+        ])
+
+    def finish(self):
+        now = self.now
+        self.room_time[self.room] += now - self.room_entered_at
+        self.over = True
+        self.show(self.report_box(now).render())
+
+    def report_box(self, now):
+        minutes, secs = divmod(int(round(now - self.start_time)), 60)
+        dishes = [LR(numbered(i + 1, name), f'{seconds(t)} SEC') for i, (name, t) in enumerate(self.served)]
+        rooms = [LR(f'    {ROOMS[rid][1]}', f'{seconds(self.room_time[rid])} SEC') for rid in ROOMS]
+        avg_dish = sum(t for _, t in self.served) / len(self.served) if self.served else 0
+        avg_disposal = sum(self.disposal_times) / len(self.disposal_times) if self.disposal_times else 0
+        stats = [LR(numbered(1, 'AVERAGE TIME PER DISH:'), f'{seconds(avg_dish)} SEC'),
+                 LR(numbered(2, 'AVERAGE DISPOSAL ACTIVATION:'), f'{seconds(avg_disposal)} SEC'),
+                 LR(numbered(3, '# OF EVERYTHING CHECKS:'), str(self.e_checks)),
+                 LR(numbered(4, '# OF RECIPE CHECKS:'), str(self.r_checks))]
+        return Box('GAME REPORT', [
+            [C(f'YOU SERVED {len(self.served)} CUSTOMERS IN: {minutes} MIN, {secs} SEC')],
+            [L(' DISHES SERVED:')] + dishes,
+            [L(' TIME SPENT IN:')] + rooms,
+            [L(' STATISTICS:')] + stats,
+        ])
