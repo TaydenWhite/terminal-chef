@@ -24,11 +24,8 @@ On macOS, allow your terminal app under System Settings > Privacy & Security >
 Input Monitoring (and Accessibility), then run the game again.'''
 
 
-class Quit(Exception):
-    pass
-
-
 def run_game(keyboard, io):
+    """Play one game. ESC pauses; failing the pause question ends the run."""
     game = Game(io)
     game.start()
     while not game.over:
@@ -36,8 +33,6 @@ def run_game(keyboard, io):
         if event is None:
             continue
         kind, key = event
-        if key == 'ESC':
-            raise Quit
         if kind == 'press':
             game.press(key)
         else:
@@ -72,7 +67,7 @@ def main():
                 continue  # TUTORIAL and FASTEST GAMES are not built yet
             io.line(MAIN_MENU)
             io.line('')
-    except (Quit, KeyboardInterrupt):
+    except KeyboardInterrupt:
         pass
     finally:
         keyboard.close()

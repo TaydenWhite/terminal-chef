@@ -83,14 +83,20 @@ class Game:
         self.r_checks = 0
         self.disposal_times = []
         self.held = set()
-        self.math = None  # active trash-disposal quiz, else None
+        self.math = None  # active multiplication prompt, else None
+        self.pause_offset = 0.0  # real seconds spent paused, excluded from game time
+        self.paused_at = None  # game time the pause froze at, else None
         self.over = False
+        self.quit_early = False  # True when a failed pause ended the run
         self.screen = None
 
     # ------------------------------------------------------------ basics
     @property
     def now(self):
-        return self.clock()
+        """Game time: real time minus every second spent paused. Frozen while paused."""
+        if self.paused_at is not None:
+            return self.paused_at
+        return self.clock() - self.pause_offset
 
     def add_trash(self, n):
         self.trash = min(10, self.trash + n)
@@ -131,6 +137,8 @@ class Game:
         self.tick()
         if self.math is not None:
             self.math_key(key)
+        elif key == 'ESC':
+            self.pause()
         elif key in ('E', 'R'):
             if key in self.held:
                 return
@@ -450,7 +458,8 @@ class Game:
             self.go(self.washer_take_screen() if self.washer.clean_plates() else self.washer_screen())
         elif n == 2:
             if not self.disposal.running:
-                self.start_math()
+                self.start_math(['TRASH DISPOSAL', 'ACTIVATE'], 3,
+                                'STARTED TRASH DISPOSAL', self.disposal_activated)
         elif n == 3:
             self.go(self.picker(['DISCARD BIN'], None, self.discard, self.entered_screen))
 
@@ -507,10 +516,18 @@ class Game:
             self.inventory[i] = None
         return True
 
-    # ------------------------------------------------------------ trash disposal quiz
-    def start_math(self):
-        self.math = {'correct': 0, 'typed': '', 'answer': None, 'started': self.now}
-        title = '  TRASH DISPOSAL  ||  ACTIVATE  '
+    # ------------------------------------------------------------ multiplication prompts
+    def start_math(self, segments, needed, footer, on_done, cursor=True, on_wrong=None):
+        """Open a multiplication challenge below an open-bottomed title box.
+
+        `needed` correct answers finish it, printing `footer` and calling
+        `on_done(started)`. A wrong answer calls `on_wrong()` if given,
+        otherwise it simply poses a fresh problem.
+        """
+        self.math = {'correct': 0, 'needed': needed, 'typed': '', 'answer': None,
+                     'started': self.now, 'cursor': cursor, 'footer': footer,
+                     'on_done': on_done, 'on_wrong': on_wrong}
+        title = '||'.join(f'  {s}  ' for s in segments)
         self.io.line(MARGIN + '//' + '=' * len(title) + '\\\\')
         self.io.line(MARGIN + '||' + title + '||')
         self.io.line(MARGIN + '||' + '=' * len(title) + '//')
@@ -520,7 +537,9 @@ class Game:
         a, b = self.rng.randint(1, 9), self.rng.randint(1, 9)
         self.math['answer'] = a * b
         self.math['typed'] = ''
-        self.io.raw(f'{MARGIN}||  {a} X {b} = _\b')
+        # The underscore is a cursor the first typed digit overwrites.
+        tail = '_\b' if self.math['cursor'] else ''
+        self.io.raw(f'{MARGIN}||  {a} X {b} = {tail}')
 
     def math_key(self, key):
         m = self.math
@@ -531,23 +550,51 @@ class Game:
         elif key == 'BACKSPACE':
             if m['typed']:
                 m['typed'] = m['typed'][:-1]
-                self.io.raw('\b \b' if m['typed'] else '\b_\b')
+                blank = m['cursor'] and not m['typed']
+                self.io.raw('\b_\b' if blank else '\b \b')
         elif key == 'ENTER':
             self.io.raw('\n')
-            if m['typed'] and int(m['typed']) == m['answer']:
+            if not (m['typed'] and int(m['typed']) == m['answer']):
+                if m['on_wrong'] is not None:
+                    self.math = None
+                    m['on_wrong']()
+                    return
+            else:
                 m['correct'] += 1
-            if m['correct'] < 3:
+            if m['correct'] < m['needed']:
                 self.new_problem()
                 return
-            width = len('  STARTED TRASH DISPOSAL  ')
+            self.math = None
+            width = len(m['footer']) + 4
             self.io.line(MARGIN + '||' + '=' * width + '\\\\')
-            self.io.line(MARGIN + '||  STARTED TRASH DISPOSAL  ||')
+            self.io.line(MARGIN + f"||  {m['footer']}  ||")
             self.io.line(MARGIN + '\\\\' + '=' * width + '//')
             self.io.line('')
-            self.disposal_times.append(self.now - m['started'])
-            self.disposal.start(self.now, self.trash)
-            self.math = None
-            self.go(self.entered_screen())
+            m['on_done'](m['started'])
+
+    def disposal_activated(self, started):
+        self.disposal_times.append(self.now - started)
+        self.disposal.start(self.now, self.trash)
+        self.go(self.entered_screen())
+
+    # ------------------------------------------------------------ pause
+    def pause(self):
+        """ESC freezes game time behind one multiplication. Wrong answer ends the run."""
+        if self.over or self.paused_at is not None:
+            return
+        self.paused_at = self.now
+        self.start_math(['GAME PAUSED', 'RESUME:'], 1, 'CONTINUE!',
+                        self.resume, cursor=False, on_wrong=self.fail_pause)
+
+    def resume(self, started):
+        self.pause_offset = self.clock() - self.paused_at
+        self.paused_at = None
+        self.render()  # reprint whichever menu they were on
+
+    def fail_pause(self):
+        self.paused_at = None
+        self.quit_early = True
+        self.over = True
 
     # ------------------------------------------------------------ EVERYTHING / report
     def everything_box(self):
