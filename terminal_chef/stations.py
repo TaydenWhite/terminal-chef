@@ -6,7 +6,7 @@ import math
 
 from .food import Ingredient, Plate
 
-BURN_SECONDS = 15
+BURN_SECONDS = 30
 EAT_SECONDS = 45
 WASHER_SECONDS = 30
 DISPOSAL_SECONDS = 15
