@@ -14,8 +14,8 @@ ROOMS = {
     'SERVICE':  ('SERVICE', 'Service', 0, 0),
     'PLATING':  ('PLATING', 'Plating', 0, 1),
     'COUNTERS': ('COUNTERS', 'Counters', 0, 2),
-    'STOVES':   ('STOVES', 'Stoves', 1, 2),
-    'PREP':     ('PREP ROOM', 'Prep', 1, 1),
+    'STOVES':   ('STOVES', 'Stoves', 1, 1),
+    'PREP':     ('PREP ROOM', 'Prep', 1, 2),
     'PANTRY':   ('PANTRY', 'Pantry', 2, 1),
     'CLEANING': ('CLEANING', 'Cleaning', 2, 2),
 }
@@ -62,15 +62,16 @@ class Game:
         self.plates = [Plate(n) for n in (1, 2, 3)]
         self.plating = list(self.plates)
         self.counters = [Counter(f'COUNTER #{n}') for n in (1, 2, 3)]
-        self.cookers = [Cooker('PAN', 'PAN #1'), Cooker('PAN', 'PAN #2'), Cooker('POT', 'POT #1')]
-        self.board = Prepper('CUT', 'CUTTING BOARD', CUT_SECONDS)
-        self.sink = Prepper('WASH', 'SINK', WASH_SECONDS)
+        self.cookers = [Cooker('PAN', 'PAN #1'), Cooker('PAN', 'PAN #2'), Cooker('POT', 'POT')]
+        self.board = Prepper('CUT', 'CUTTING BOARD', CUT_SECONDS, 'BOARD')
+        self.sink = Prepper('WASH', 'SINK', WASH_SECONDS, 'SINK')
         self.washer = DishWasher()
         self.disposal = Disposal()
         self.customers = [Customer(n) for n in (1, 2, 3)]
-        # Fixed order for tick processing and the CURRENT PROCESSES list.
-        self.stations = (self.cookers + [self.board, self.sink, self.washer, self.disposal]
-                         + self.counters + self.customers)
+        # Fixed order for the PROCESSES list; counters have their own section.
+        self.processors = (self.cookers + [self.board, self.sink, self.washer, self.disposal]
+                           + self.customers)
+        self.stations = self.processors + self.counters  # everything that ticks
         self.orders = random_orders(TOTAL_ORDERS, rng=rng)
         self.next_order = 0
         self.served = []  # (dish name, seconds from order to serve)
@@ -181,6 +182,12 @@ class Game:
     def outstanding(self):
         return [c.order for c in self.customers if c.state == 'WAITING']
 
+    def head_line(self, label, station, now):
+        """'  PAN #2: Beef' with its time right-aligned, for a room status line."""
+        content, right = station.head(now)
+        left = f'{label} {content}'
+        return LR(left, right) if right else L(left)
+
     def take_status(self, station):
         item = station.item
         if item is None:
@@ -238,16 +245,19 @@ class Game:
             slots = [L(numbered(i + 1, p.label if p else '')) for i, p in enumerate(self.plating)]
             return Box(title, [self.customer_section(), interact + slots])
         if room == 'COUNTERS':
-            rows = [LR(numbered(i + 1, c.item.label), c.time_text(now)) if c.item else L(numbered(i + 1))
+            rows = [LR(f'    #{i + 1}: {c.item.label}', c.time_text(now)) if c.item else L(f'    #{i + 1}:')
                     for i, c in enumerate(self.counters)]
             return Box(title, [rows, interact + [L(numbered(i + 1, c.label)) for i, c in enumerate(self.counters)]])
         if room == 'STOVES':
-            pan1, pan2, pot = self.cookers
-            return Box(title, [[Cells(f'{pan1.label}: {pan1.status(now)}', f'{pan2.label}: {pan2.status(now)}')],
-                               [C(f'{pot.label}: {pot.status(now)}')],
+            pad = max(len(c.label) for c in self.cookers)  # right-align PAN #1 / PAN #2 / POT
+            rows = [self.head_line(f'  {c.label:>{pad}}:', c, now) for c in self.cookers]
+            return Box(title, [rows,
                                interact + [L(numbered(i + 1, c.label)) for i, c in enumerate(self.cookers)]])
         if room == 'PREP':
-            return Box(title, [[Cells(f'BOARD: {self.board.status(now)}', f'SINK: {self.sink.status(now)}')],
+            preppers = (self.board, self.sink)
+            pad = max(len(s.short) for s in preppers)  # right-align BOARD / SINK
+            rows = [self.head_line(f'  {s.short:>{pad}}:', s, now) for s in preppers]
+            return Box(title, [rows,
                                interact + [L(numbered(1, 'CUTTING BOARD')), L(numbered(2, 'SINK'))]])
         if room == 'PANTRY':
             return Box(title, [interact + [L(numbered(1, 'FRIDGE')), L(numbered(2, 'SHELF'))]])
@@ -304,7 +314,7 @@ class Game:
     def plating_select(self, n):
         slot = n - 1
         if self.plating[slot] is None:
-            self.go(self.picker([f'SLOT #{n}', 'ADD PLATE'], lambda: C('EMPTY'),
+            self.go(self.picker([f'SLOT #{n}', 'ADD PLATE'], None,
                                 lambda i: self.add_plate(slot, i), self.entered_screen))
         else:
             self.go(self.plate_screen(slot))
@@ -315,7 +325,7 @@ class Game:
         status = lambda: C(plate.content or 'EMPTY')
 
         def render():
-            return Box(title, [[status()], [L(' ACTION:'), L(numbered(1, 'ADD TO PLATE')),
+            return Box(title, [[status()], [L(' ACTION:'), L(numbered(1, 'ADD INGREDIENT')),
                                             L(numbered(2, 'PICK UP PLATE')), L(numbered(4, 'RETURN'))]])
 
         def on_key(key):
@@ -385,21 +395,23 @@ class Game:
 
     # ------------------------------------------------------------ STOVES / PREP
     def stoves_select(self, n):
-        self.station_select(self.cookers[n - 1])
+        # Pans and the pot use a single-segment title, unlike the prep stations.
+        self.station_select(self.cookers[n - 1], segments=False)
 
     def prep_select(self, n):
         if n <= 2:
             self.station_select([self.board, self.sink][n - 1])
 
-    def station_select(self, station):
+    def station_select(self, station, segments=True):
         if not station.selectable:
             return
-        if station.item is None:
-            self.go(self.picker([station.label, 'ADD ITEM'], lambda: C('EMPTY'),
-                                lambda i: self.add_to(station, i), self.entered_screen))
-        else:
-            self.go(self.picker([station.label, 'TAKE ITEM'], lambda: self.take_status(station),
-                                lambda i: self.take_from(station, i), self.entered_screen))
+        taking = station.item is not None
+        title = [station.label]
+        if segments:
+            title.append('TAKE ITEM' if taking else 'ADD ITEM')
+        status = (lambda: self.take_status(station)) if taking else (lambda: C('EMPTY'))
+        action = (lambda i: self.take_from(station, i)) if taking else (lambda i: self.add_to(station, i))
+        self.go(self.picker(title, status, action, self.entered_screen))
 
     # ------------------------------------------------------------ PANTRY
     def pantry_select(self, n):
@@ -432,28 +444,35 @@ class Game:
     # ------------------------------------------------------------ CLEANING
     def cleaning_select(self, n):
         if n == 1:
-            if not self.washer.running:
-                self.go(self.washer_screen())
+            if self.washer.running:
+                return
+            # Clean plates mean taking is the only useful action, so skip the action menu.
+            self.go(self.washer_take_screen() if self.washer.clean_plates() else self.washer_screen())
         elif n == 2:
             if not self.disposal.running:
                 self.start_math()
         elif n == 3:
             self.go(self.picker(['DISCARD BIN'], None, self.discard, self.entered_screen))
 
-    def washer_screen(self):
-        status = lambda: C(self.washer.status_long(self.now))
+    def washer_status(self):
+        return C(self.washer.status_long(self.now))
 
+    def washer_take_screen(self):
+        return self.picker(['DISH WASHER', 'TAKE PLATE'], self.washer_status,
+                           self.washer_take, self.entered_screen)
+
+    def washer_screen(self):
+        """The action menu, reached only while the washer is empty or holds dirty plates."""
         def render():
-            return Box('DISH WASHER', [[status()], [L(' ACTION:'), L(numbered(1, 'ADD PLATE')),
-                                                    L(numbered(2, 'RETRIEVE PLATE')),
-                                                    L(numbered(3, 'START WASHER')), L(numbered(4, 'RETURN'))]])
+            return Box('DISH WASHER', [[self.washer_status()],
+                                       [L(' ACTION:'), L(numbered(1, 'ADD PLATE')),
+                                        L(numbered(2, 'START WASHER')), L(numbered(4, 'RETURN'))]])
 
         def on_key(key):
             if key == '1':
-                self.go(self.picker(['DISH WASHER', 'ADD PLATE'], status, self.washer_add, self.washer_screen))
+                self.go(self.picker(['DISH WASHER', 'ADD PLATE'], self.washer_status,
+                                    self.washer_add, self.washer_screen))
             elif key == '2':
-                self.go(self.picker(['DISH WASHER', 'TAKE PLATE'], status, self.washer_take, self.washer_screen))
-            elif key == '3':
                 if self.washer.start(self.now, self.trash):
                     self.show(Box('STARTED DISH WASHER').render())
                     self.go(self.entered_screen())
@@ -534,13 +553,16 @@ class Game:
     def everything_box(self):
         now = self.now
         orders = [L(numbered(c.seat, c.order)) for c in self.customers if c.state == 'WAITING']
-        processes = [(s.process_name(), s.timer.remaining(now)) for s in self.stations if s.timer is not None]
+        counters = [LR(numbered(i + 1, c.item.label), c.time_text(now)) if c.item else L(numbered(i + 1))
+                    for i, c in enumerate(self.counters)]
+        processes = [(s.process_name(), s.timer.remaining(now)) for s in self.processors if s.timer is not None]
         process_lines = [LR(numbered(i + 1, name), f'{t} SEC') for i, (name, t) in enumerate(processes)]
         return Box('EVERYTHING', [
             [Cells(f'IN: {ROOMS[self.room][0]}', f'TRASH LVL: {self.trash}')],
             [L(' OUTSTANDING ORDERS:')] + orders,
             [L(' INVENTORY:')] + self.inventory_lines(),
-            [L(' CURRENT PROCESSES:')] + process_lines,
+            [L(' COUNTERS:')] + counters,
+            [L(' PROCESSES:')] + process_lines,
         ])
 
     def finish(self):

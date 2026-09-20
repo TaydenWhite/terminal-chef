@@ -74,13 +74,15 @@ class Cooker:
         self.item, self.phase, self.timer = None, None, None
         return item
 
-    def status(self, now):
+    def head(self, now):
+        """(content, right value) for the ENTERED: STOVES status lines."""
         if self.phase is None:
-            return 'EMPTY'
-        return f"{self.timer.remaining(now)} SEC [{'C' if self.phase == 'COOKING' else 'B'}]"
+            return 'EMPTY', None
+        marker = 'C' if self.phase == 'COOKING' else 'B'
+        return self.item.name, f'{self.timer.remaining(now)} SEC [{marker}]'
 
     def time_text(self, now):
-        return f'{self.timer.remaining(now)} SEC' if self.timer else None
+        return self.head(now)[1]
 
     def process_name(self):
         name = f'{self.label} [{self.item.name}]'
@@ -90,9 +92,10 @@ class Cooker:
 class Prepper:
     """The cutting board or the sink. Runs once, then holds the finished item."""
 
-    def __init__(self, step, label, seconds):
+    def __init__(self, step, label, seconds, short):
         self.step = step
         self.label = label
+        self.short = short  # name used on the ENTERED: PREP ROOM status lines
         self.seconds = seconds
         self.item = None
         self.phase = None  # None, 'RUNNING', 'COMPLETE'
@@ -124,12 +127,13 @@ class Prepper:
         self.item, self.phase, self.timer = None, None, None
         return item
 
-    def status(self, now):
+    def head(self, now):
+        """(content, right value) for the ENTERED: PREP ROOM status lines."""
         if self.phase is None:
-            return 'EMPTY'
+            return 'EMPTY', None
         if self.phase == 'RUNNING':
-            return f'{self.timer.remaining(now)} SEC'
-        return 'COMPLETE'
+            return self.item.name, f'{self.timer.remaining(now)} SEC'
+        return self.item.name, 'COMPLETE'
 
     def time_text(self, now):
         return None

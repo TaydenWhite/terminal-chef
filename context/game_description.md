@@ -453,9 +453,7 @@ AFTER SELECTING DISCARD BIN
     DISCARD INVENTORY 3 ITEM - PRESS 3
     RETURN - PRESS 4
 
-================================================================================
-
-
+ROOM CAN BE EXITED BY VALID MOVEMENT KEYS ONLY WHILE IN "ENTERED: X"
 ================================================================================
 
 
