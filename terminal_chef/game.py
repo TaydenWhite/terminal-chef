@@ -4,6 +4,7 @@ import random
 import sys
 import time
 
+from . import scores
 from .food import FRIDGE, SHELF, Ingredient, Plate, random_orders, recipe_steps
 from .render import MARGIN, Box, C, Cells, L, LR, numbered
 from .stations import (CUT_SECONDS, WASH_SECONDS, Cooker, Counter, Customer,
@@ -11,17 +12,19 @@ from .stations import (CUT_SECONDS, WASH_SECONDS, Cooker, Counter, Customer,
 
 # room id: (title used in ENTERED and IN lines, report name, grid x, grid y)
 ROOMS = {
+    # Listed across the floor plan, which is also the order the report uses.
     'SERVICE':  ('SERVICE', 'Service', 0, 0),
     'PLATING':  ('PLATING', 'Plating', 0, 1),
-    'COUNTERS': ('COUNTERS', 'Counters', 0, 2),
     'STOVES':   ('STOVES', 'Stoves', 1, 1),
-    'PREP':     ('PREP ROOM', 'Prep', 1, 2),
     'PANTRY':   ('PANTRY', 'Pantry', 2, 1),
+    'COUNTERS': ('COUNTERS', 'Counters', 0, 2),
+    'PREP':     ('PREP ROOM', 'Prep', 1, 2),
     'CLEANING': ('CLEANING', 'Cleaning', 2, 2),
 }
 GRID = {(x, y): rid for rid, (_, _, x, y) in ROOMS.items()}
 MOVES = {'UP': (0, -1), 'DOWN': (0, 1), 'LEFT': (-1, 0), 'RIGHT': (1, 0)}
-TOTAL_ORDERS = 12
+TOTAL_ORDERS = 12  # a long game; a short game runs 6
+DISTINCT_ORDERS = 8
 
 
 class ConsoleIO:
@@ -46,6 +49,53 @@ def seconds(value):
     return str(int(round(value)))
 
 
+def clock_text(total):
+    minutes, secs = divmod(int(round(total)), 60)
+    return f'{minutes} MIN, {secs} SEC'
+
+
+def fastest_box():
+    table = scores.load()
+    sections = []
+    for mode, heading in (('long', 'LONG GAMES:'), ('short', 'SHORT GAMES:')):
+        times = table.get(mode) or []
+        rows = [L(f' {heading}')]
+        rows += ([LR(numbered(i + 1), clock_text(t)) for i, t in enumerate(times)]
+                 or [L('    NONE YET')])
+        sections.append(rows)
+    return Box('FASTEST GAMES', sections)
+
+
+def tutorial_box():
+    flow = [('BEEF', 'COOK, THEN CUT'), ('CHICKEN', 'WASH, COOK, THEN CUT'),
+            ('LETTUCE', 'WASH, THEN CUT'), ('TOMATO', 'WASH, CUT, THEN COOK'),
+            ('POTATO', 'CUT, THEN COOK'), ('BREAD', 'CUT')]
+    return Box('TUTORIAL', [
+        [L(' CONTROLS:'),
+         LR('    ARROW KEYS / WASD', 'MOVE BETWEEN ROOMS'),
+         LR('    1-4', 'MENU SELECTIONS'),
+         LR('    E', 'SHOW EVERYTHING'),
+         LR('    R', 'SHOW RECIPES'),
+         LR('    ESC', 'PAUSE')],
+        [L(' THE KITCHEN:'),
+         L('    [SERVICE]'),
+         L('    [PLATING] [STOVES]    [PANTRY]'),
+         L('    [COUNTERS][PREP ROOM] [CLEANING]')],
+        [L(' EVERY DISH:'),
+         L('    1. TAKE INGREDIENTS FROM THE PANTRY'),
+         L('    2. PREPARE THEM UNTIL THEY READ [RTP]'),
+         L('    3. STACK THEM ON A PLATE IN PLATING'),
+         L('    4. CARRY THE PLATE TO THE CUSTOMER'),
+         L('    5. TAKE THE DIRTY PLATE BACK AND WASH IT')],
+        [L(' INGREDIENTS:')] + [L(f'    {name:<10}{steps}') for name, steps in flow],
+        [L(' WATCH OUT:'),
+         L('    FOOD LEFT COOKING BURNS AND IS LOST'),
+         L('    ITEMS LEFT ON COUNTERS EXPIRE'),
+         L('    EVERY FINISHED PROCESS ADDS TRASH'),
+         L('    AT TRASH 8 AND ABOVE, EVERYTHING SLOWS DOWN')],
+    ])
+
+
 def recipes_box(names):
     sections = [[L(f' {name}:')] + [L(numbered(step, label)) for step, label in recipe_steps(name)]
                 for name in names]
@@ -53,7 +103,8 @@ def recipes_box(names):
 
 
 class Game:
-    def __init__(self, io=None, clock=time.monotonic, rng=random):
+    def __init__(self, io=None, clock=time.monotonic, rng=random,
+                 orders=TOTAL_ORDERS, distinct=DISTINCT_ORDERS, mode='long'):
         self.io = io or ConsoleIO()
         self.clock = clock
         self.rng = rng
@@ -72,7 +123,9 @@ class Game:
         self.processors = (self.cookers + [self.board, self.sink, self.washer, self.disposal]
                            + self.customers)
         self.stations = self.processors + self.counters  # everything that ticks
-        self.orders = random_orders(TOTAL_ORDERS, rng=rng)
+        self.mode = mode  # 'short' or 'long', for the fastest-games table
+        self.total_orders = orders
+        self.orders = random_orders(orders, distinct, rng=rng)
         self.next_order = 0
         self.served = []  # (dish name, seconds from order to serve)
         self.room = 'SERVICE'
@@ -82,7 +135,7 @@ class Game:
         self.e_checks = 0
         self.r_checks = 0
         self.disposal_times = []
-        self.held = set()
+        self.peek = False  # True while an EVERYTHING or RECIPES menu is showing
         self.math = None  # active multiplication prompt, else None
         self.pause_offset = 0.0  # real seconds spent paused, excluded from game time
         self.paused_at = None  # game time the pause froze at, else None
@@ -137,26 +190,22 @@ class Game:
         self.tick()
         if self.math is not None:
             self.math_key(key)
+        elif self.peek:
+            # While peeking, any recognised key just closes the peek and is consumed.
+            self.peek = False
+            self.render()
+        elif key == 'E':
+            self.peek = True
+            self.e_checks += 1
+            self.show(self.everything_box().render())
+        elif key == 'R':
+            self.peek = True
+            self.r_checks += 1
+            self.show(recipes_box(self.outstanding()).render())
         elif key == 'ESC':
             self.pause()
-        elif key in ('E', 'R'):
-            if key in self.held:
-                return
-            self.held.add(key)
-            if key == 'E':
-                self.e_checks += 1
-                self.show(self.everything_box().render())
-            else:
-                self.r_checks += 1
-                self.show(recipes_box(self.outstanding()).render())
         else:
             self.screen.on_key(key)
-
-    def release(self, key):
-        if key in self.held:
-            self.held.discard(key)
-            if not self.over and self.math is None:
-                self.render()
 
     def move(self, direction):
         _, _, x, y = ROOMS[self.room]
@@ -294,7 +343,7 @@ class Game:
         self.served.append((customer.order, now - customer.order_time))
         customer.serve(item, now, self.trash)
         self.show(Box(f'SERVED {customer.label}').render())
-        if len(self.served) == TOTAL_ORDERS:
+        if len(self.served) == self.total_orders:
             self.finish()
         return True
 
@@ -565,12 +614,16 @@ class Game:
                 self.new_problem()
                 return
             self.math = None
-            width = len(m['footer']) + 4
-            self.io.line(MARGIN + '||' + '=' * width + '\\\\')
-            self.io.line(MARGIN + f"||  {m['footer']}  ||")
-            self.io.line(MARGIN + '\\\\' + '=' * width + '//')
-            self.io.line('')
+            self.show_footer(m['footer'])
             m['on_done'](m['started'])
+
+    def show_footer(self, text):
+        """A small box that hangs off the bottom of a multiplication prompt."""
+        width = len(text) + 4
+        self.io.line(MARGIN + '||' + '=' * width + '\\\\')
+        self.io.line(MARGIN + f'||  {text}  ||')
+        self.io.line(MARGIN + '\\\\' + '=' * width + '//')
+        self.io.line('')
 
     def disposal_activated(self, started):
         self.disposal_times.append(self.now - started)
@@ -584,7 +637,7 @@ class Game:
             return
         self.paused_at = self.now
         self.start_math(['GAME PAUSED', 'RESUME:'], 1, 'CONTINUE!',
-                        self.resume, cursor=False, on_wrong=self.fail_pause)
+                        self.resume, on_wrong=self.fail_pause)
 
     def resume(self, started):
         self.pause_offset = self.clock() - self.paused_at
@@ -595,6 +648,7 @@ class Game:
         self.paused_at = None
         self.quit_early = True
         self.over = True
+        self.show_footer('GAME OVER')
 
     # ------------------------------------------------------------ EVERYTHING / report
     def everything_box(self):
@@ -616,10 +670,11 @@ class Game:
         now = self.now
         self.room_time[self.room] += now - self.room_entered_at
         self.over = True
+        scores.record(self.mode, now - self.start_time)
         self.show(self.report_box(now).render())
 
     def report_box(self, now):
-        minutes, secs = divmod(int(round(now - self.start_time)), 60)
+        elapsed = clock_text(now - self.start_time)
         dishes = [LR(numbered(i + 1, name), f'{seconds(t)} SEC') for i, (name, t) in enumerate(self.served)]
         rooms = [LR(f'    {ROOMS[rid][1]}', f'{seconds(self.room_time[rid])} SEC') for rid in ROOMS]
         avg_dish = sum(t for _, t in self.served) / len(self.served) if self.served else 0
@@ -629,7 +684,7 @@ class Game:
                  LR(numbered(3, '# OF EVERYTHING CHECKS:'), str(self.e_checks)),
                  LR(numbered(4, '# OF RECIPE CHECKS:'), str(self.r_checks))]
         return Box('GAME REPORT', [
-            [C(f'YOU SERVED {len(self.served)} CUSTOMERS IN: {minutes} MIN, {secs} SEC')],
+            [C(f'YOU SERVED {len(self.served)} CUSTOMERS IN: {elapsed}')],
             [L(' DISHES SERVED:')] + dishes,
             [L(' TIME SPENT IN:')] + rooms,
             [L(' STATISTICS:')] + stats,

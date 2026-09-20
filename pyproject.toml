@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "terminal-chef"
+version = "0.1.0"
+description = "A low-graphics cooking game that lives entirely in your terminal."
+requires-python = ">=3.8"
+authors = [{ name = "Tayden White" }]
+dependencies = []
+
+[project.scripts]
+terminal-chef = "terminal_chef.main:main"
+
+[tool.setuptools]
+packages = ["terminal_chef"]
