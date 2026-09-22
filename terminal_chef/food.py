@@ -92,12 +92,13 @@ RECIPES = [
     ('Potato Soup w/ Beef', [[POTATO], [BREAD_UNCUT], [STEAK]]),
     ('Potato Soup w/ Chicken', [[POTATO], [BREAD_UNCUT], [CHICKEN_CUT]]),
     ('Tomato Soup', [[TOMATO_COOKED], [BREAD_UNCUT]]),
-    ('Salad', [[LETTUCE], [TOMATO_RAW]]),
-    ('Salad w/ Extra Tomato', [[LETTUCE], [TOMATO_RAW, TOMATO_RAW]]),
-    ('Steak Salad', [[LETTUCE], [TOMATO_RAW, STEAK]]),
-    ('Steak Salad w/ Extra Tomato', [[LETTUCE], [TOMATO_RAW, STEAK, TOMATO_RAW]]),
-    ('Chicken Salad', [[LETTUCE], [TOMATO_RAW, CHICKEN_CUT]]),
-    ('Chicken Salad w/ Extra Tomato', [[LETTUCE], [TOMATO_RAW, CHICKEN_CUT, TOMATO_RAW]]),
+    # Salads are a single step group: every ingredient may go on in any order.
+    ('Salad', [[LETTUCE, TOMATO_RAW]]),
+    ('Salad w/ Extra Tomato', [[LETTUCE, TOMATO_RAW, TOMATO_RAW]]),
+    ('Steak Salad', [[LETTUCE, TOMATO_RAW, STEAK]]),
+    ('Steak Salad w/ Extra Tomato', [[LETTUCE, TOMATO_RAW, STEAK, TOMATO_RAW]]),
+    ('Chicken Salad', [[LETTUCE, TOMATO_RAW, CHICKEN_CUT]]),
+    ('Chicken Salad w/ Extra Tomato', [[LETTUCE, TOMATO_RAW, CHICKEN_CUT, TOMATO_RAW]]),
 ]
 RECIPE_BY_NAME = dict(RECIPES)
 DISH_NAMES = [name for name, _ in RECIPES]

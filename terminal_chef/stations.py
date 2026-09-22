@@ -7,7 +7,7 @@ import math
 from .food import Ingredient, Plate
 
 BURN_SECONDS = 30
-EAT_SECONDS = 45
+EAT_SECONDS = 30
 WASHER_SECONDS = 30
 DISPOSAL_SECONDS = 15
 EXPIRE_SECONDS = 30
@@ -217,9 +217,12 @@ class Disposal:
         return self.timer is not None
 
     def start(self, now, trash):
-        self.timer = Timer(now, DISPOSAL_SECONDS + penalty(trash))
+        # Deliberately exempt from the trash-level penalty: the one process
+        # that clears trash must not be slowed down by it.
+        self.timer = Timer(now, DISPOSAL_SECONDS)
 
     def fire(self, game):
+        # Zeroed outright, so anything added while the cycle ran goes too.
         game.trash = 0
         self.timer = None
 

@@ -24,6 +24,17 @@ python3 chef.py
 It needs a real terminal window. Running it through a pipe, or from an editor
 console that does not forward keystrokes, will not work.
 
+## Start screen
+
+```
+1) SHORT GAME      6 customers
+2) LONG GAME      12 customers
+3) TUTORIAL       the controls, the kitchen and the ingredient flow
+4) VIEW RECIPES   every dish in the game
+5) FASTEST GAMES  your ten best times in each length
+6) EXIT
+```
+
 ## Controls
 
 | Key | Does |
@@ -79,16 +90,26 @@ Stopping early matters. A cooked but uncut piece of beef is a burger patty; cut
 it as well and it becomes a steak. The game refuses anything that is not a legal
 next step for some recipe, and says nothing when it does, so check your tags.
 
+Most recipes have to be built in order, so bread goes down before the patty.
+Salads are the exception: every ingredient in a salad counts as the same step,
+so lettuce, tomato and any meat can go on in whatever order you like.
+
 ## Trash
 
 Trash runs from 0 to 10 and is the main thing working against you. Every
 finished process adds some: pans, pots, the cutting board, the sink and the dish
-washer each add 1, burning food adds 2 on top of the 1 for finishing cooking,
-and anything left to expire on a counter adds 3.
+washer each add 1, taking a dirty plate back from a customer adds 1, burning
+food adds 2 on top of the 1 for finishing cooking, and anything left to expire
+on a counter adds 3.
 
-From level 8 up, everything you start runs slower: 5 extra seconds at 8, 10 at 9
-and 15 at 10. Clear it in the cleaning room, where the trash disposal resets it
-to zero once you answer three multiplication questions and wait out the cycle.
+From level 8 up, most things you start run slower: 5 extra seconds at 8, 10 at 9
+and 15 at 10. That covers cooking, cutting, washing, the dish washer and how
+long customers take to eat. Burning, counters and the trash disposal are never
+slowed, so food you have abandoned still burns away on schedule.
+
+Clear it in the cleaning room by answering three multiplication questions to
+start the trash disposal. It always takes 15 seconds, and when its cycle ends
+the level drops to zero, including anything that piled up while it ran.
 
 ## Watch out
 
