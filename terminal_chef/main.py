@@ -5,11 +5,13 @@ from .game import ConsoleIO, Game, fastest_box, recipes_box, tutorial_box
 
 MAIN_MENU = r'''   //============================\\
    ||  WELCOME TO TERMINAL CHEF  ||
-   ||                   __       ||
-   ||       ^~^~^~^    (  )      ||
-   ||      (       )    ||       ||
-   ||       |_!_!_|     ||       ||
-   ||       ' ' ' '     ()       ||
+   ||                            ||
+   ||     .-. .-. .-.      __    ||
+   ||    (   '   '   )    (  )   ||
+   ||    |           |     ||    ||
+   ||    '._________.'     ||    ||
+   ||      | | | | |       ||    ||
+   ||      |_|_|_|_|       ()    ||
    ||                            ||
    ||  CREATED BY: TAYDEN WHITE  ||
    \\============================//
